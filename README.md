@@ -1,1 +1,1 @@
-# non-linear-cointegration
+# Non Linear Cointegration in Pairs Trading
