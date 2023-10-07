@@ -1,0 +1,250 @@
+```{r setup, include=FALSE}
+setwd( "/Users/hun/Library/CloudStorage/OneDrive-SNU/1. University/UChicago/2022 4Q Winter/TimeSeries_Ruey/ts_ruey_R/final")
+require(MTS)
+require(urca)
+require(fUnitRoots)
+require(tsDyn)
+
+# lg = 1
+# adfTest(d1, lags = lg)
+# adfTest(d1, type = "c", lags = lg)
+# adfTest(d1, type = "ct", lags = lg)
+
+# df = data.frame(d1, d2)
+# m1 = lm(d1 ~ d2)
+# ar1 = ar(m1$residuals, method ='mle')
+# ord = 3
+# coint = ca.jo(df, type = "trace", ecdet = "none", K = ord, spec = "transitory")
+# summary(coint)
+
+# wt = d1 - 0.914*d2
+# tm = lm(wt ~ a)
+# wt2 = wt - tm$coefficients[2] * a
+# ecm = ECMvar1(log(da), 2, d2, include.const = F)
+
+```
+
+
+```{r}
+da = read.csv("ret_voo_ivv.csv")
+# da = read.csv("ret_mgc_vone.csv")
+d1 = da[,2]
+d2 = da[,3]
+df_in = da[200:700,2:3]
+df_out = da[700:900,2:3]
+
+coint = ca.jo(df_in, type = "trace", ecdet = "none", K = ord, spec = "transitory")
+summary(coint)
+wt_lin = as.matrix(df_out) %*% coint@V[,1]
+ts.plot(wt_lin)
+```
+
+
+```{r}
+TVECM.HStest(df_in, lag = 3, intercept = F)
+```
+```{r}
+tv = TVECM(df_in, include = "none", lag = 3, )
+mod = tv$model.specific
+tv_beta = mod$coint
+
+com_tv = as.matrix(df_out) %*% tv_beta
+ts.plot(com_tv)
+```
+```{r}
+# b1 = tv$coefficients$Bdown[,'ECT']
+# b1 = b1/b1[1] %*% c(1, -1)
+# wt1 = (as.matrix(df_out) %*% b1)
+# wt1[df_out[1] < df_out[2]] = 0
+# b2 = tv$coefficients$Bup[,'ECT']
+# b2 = b2/b2[1] %*% c(1, -1)
+# wt2 = as.matrix(df_out)%*% b2)
+# # wt2[df_out[1] > df_out[2]] = 0
+# wt = wt1 + wt2
+ts.plot(wt2)
+```
+
+```{r}
+ts.plot(wt_lin)
+```
+
+
+
+```{r}
+
+check_vecm = function(df1, df2) {
+    res = ca.jo(cbind(df1, df2), type = "trace", ecdet = "none", K = ord, spec = "transitory")
+    rt = res@teststat
+    cval = res@cval
+    if ((rt[1] < cval[1,1]) & (rt[2] > cval[2,3])) {
+        return(0.01)
+    } else {
+        return(1)
+    }
+}
+
+pair_vecm = function(df_in) {
+    n = ncol(df_in)
+    result = matrix(NaN, nrow = n, ncol = n)
+    combs = combn(1:n, 2)
+    for (i in 1:ncol(combs)) {
+        j = combs[,i]
+        r = check_vecm(df_in[j[1]], df_in[j[2]])
+        result[j[1], j[2]] = r
+    }
+    colnames(result) = colnames(df_in)
+    rownames(result) = colnames(df_in)
+    return(result)
+}
+
+check_tvecm = function(df) {
+    res = TVECM.HStest(df, lag = 1, intercept = F)
+    return(res$PvalBoot)
+}
+
+pair_tvecm = function(df_in) {
+    n = ncol(df_in)
+    result = matrix(NaN, nrow = n, ncol = n)
+    combs = combn(1:n, 2)
+    for (i in 1:ncol(combs)) {
+        j = combs[,i]
+        r = check_tvecm(df_in[j])
+        result[j[1], j[2]] = r
+    }
+    colnames(result) = colnames(df_in)
+    rownames(result) = colnames(df_in)
+    return(result)
+}
+```
+
+
+
+```{r}
+data = read.csv("sp500_etf_log.csv")
+date = data[,1]
+prices = data[,2:ncol(data)]
+
+pair_mat_t = pair_tvecm(prices)
+pair_mat_lin = pair_vecm(prices)
+pair_mat_seo = pair_seo(prices)
+```
+
+```{r}
+yy = c(rep(0, length(date)))
+j=1
+for (i in date) {
+    yy[j] = substr(i, 1, 4)
+    j = j + 1
+}
+years = unique(yy)
+```
+
+```{r}
+i = 1
+n = length(years) - 2
+for (y in years[3:length(years)]) {
+    
+    start = as.character(strtoi(y) - 2)
+    start_end = as.character(strtoi(y) - 1)
+
+    df_in = prices[which((yy == start) | (yy == start_end)),]
+    df_out = prices[which(yy == y),]
+
+    pair_mat_t = pair_tvecm(df_in)
+    pair_mat_lin = pair_vecm(df_in)
+
+    write.csv(pair_mat_t, file = paste0("./result/pair_mat_t_", y, ".csv"))
+    write.csv(pair_mat_lin, file = paste0("./result/pair_mat_lin_", y, ".csv"))
+
+    pair_mat_t_out = pair_tvecm(df_out)
+    pair_mat_lin_out = pair_vecm(df_out)
+
+    write.csv(pair_mat_t_out, file = paste0("./result/pair_mat_t_out_", y, ".csv"))
+    write.csv(pair_mat_lin_out, file = paste0("./result/pair_mat_lin_out_", y, ".csv"))
+    i = i + 1
+    cat(paste0(round(i / n * 100), '% completed'))
+}
+```
+
+
+```{r}
+pair_mat_t = read.csv("./result/pair_mat_t_2018.csv", row.names = 1)
+pair_mat_lin = read.csv("./result/pair_mat_lin_2018.csv", row.names = 1)
+```
+
+```{r}
+get_sample = function(start) {
+    df_in = prices[which((yy == start) | (yy == start_end)),]
+    df_out = prices[which(yy == y),]
+    return(list(df_in, df_out))
+}
+```
+
+```{r}
+test = get_sample("2018")
+df_in = test[[1]]
+df_out = test[[2]]
+
+```
+
+```{r}
+ticker1 = "SPY"
+ticker2 = "MGC"
+t_res = check_seo(df_in[,ticker1], df_in[,ticker2])
+
+```
+
+```{r}
+temp = ca.jo(df_in[,c(ticker1, ticker2)], type = "trace", ecdet = "none", K = 3, spec = "transitory")
+summary(temp)
+```
+
+```{r}
+check_seo = function(df1, df2) {
+    df_in = cbind(df1, df2)
+    temp = TVECM(df_in, include = "none", lag = 3, )
+    res = TVECM.SeoTest(df_in, lag = 1, beta = temp$model.specific$beta, nboot = 1)
+    return (res)
+}
+
+pair_seo = function(pair_mat_t, pair_mat_lin, df_in) {
+    n = ncol(df_in)
+    result = matrix(NaN, nrow = n, ncol = n)
+    combs = combn(1:n, 2)
+    k = 1
+    for (i in 1:(ncol(pair_mat_t)-1)){
+        for (j in (i+1):ncol(pair_mat_t)){
+            if ((pair_mat_t[i,j] < 0.05) & (pair_mat_lin[i,j] > 0.05)) {
+                start_time <- Sys.time()
+                temp_res = check_seo(df_in[,i], df_in[,j])
+                end_time <- Sys.time()
+                print(c(k,end_time - start_time))
+                result[i, j] = temp_res$PvalBoot
+                k = k + 1
+                }
+            }
+        }
+    colnames(result) = colnames(df_in)
+    rownames(result) = colnames(df_in)
+    return(result)
+}
+
+```
+```{r}
+pair_mat_seo = pair_seo(pair_mat_t, pair_mat_lin, df_in)
+```
+
+```{r}
+write.csv(pair_mat_seo, file = paste0("./result/pair_mat_seo_2018", ".csv"))
+```
+
+```{r}
+failures = read.csv("./candid2015.csv", row.names = 1)
+```
+
+```{r}
+df_in, df_out = get_sample()
+```
+
+```{r}
+```

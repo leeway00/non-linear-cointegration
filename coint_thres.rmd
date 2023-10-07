@@ -1,0 +1,204 @@
+```{r setup, include=FALSE}
+setwd( "/Users/hun/Library/CloudStorage/OneDrive-SNU/1. University/UChicago/2022 4Q Winter/TimeSeries_Ruey/ts_ruey_R/final")
+require(MTS)
+require(urca)
+require(fUnitRoots)
+require(tsDyn)
+library(doMC)
+registerDoMC(5)
+
+data = read.csv("sp500_etf.csv")
+vecm_res = read.csv("result/vecm_res.csv")
+date = data[,1]
+prices = data[,2:ncol(data)]
+```
+
+```{r}
+get_vecm_data = function(pair_name, y){
+    pair_name1 = paste("('", pair_name[1], "', '", pair_name[2], "')", sep = "")
+    pair_name2 = paste("('", pair_name[2], "', '", pair_name[1], "')", sep = "")
+    sub_res = vecm_res[which(vecm_res['year']== y),]
+    sub_res = sub_res[which((sub_res['pair'] == pair_name1) | (sub_res['pair'] == pair_name2)),]
+    return (sub_res)
+}
+
+get_sample = function(y) {
+    start = as.character(strtoi(y) - 2)
+    start_end = as.character(strtoi(y) - 1)
+    df_in = prices[which((yy == start) | (yy == start_end)),]
+    df_out = prices[which(yy == y),]
+    return(list(df_in, df_out))
+}
+
+yy = c(rep(0, length(date)))
+j=1
+for (i in date) {
+    yy[j] = substr(i, 1, 4)
+    j = j + 1
+}
+years = unique(yy)
+
+check_vecm = function(df1, df2) {
+    res = ca.jo(cbind(df1, df2), type = "trace", ecdet = "none", K = ord, spec = "transitory")
+    rt = res@teststat
+    cval = res@cval
+    if ((rt[1] < cval[1,1]) & (rt[2] > cval[2,3])) {
+        return(0.01)
+    } else {
+        return(1)
+    }
+}
+
+pair_vecm = function(df_in, y) {
+    n = ncol(df_in)
+    result = matrix(NaN, nrow = n, ncol = n)
+    combs = combn(1:n, 2)
+    for (i in 1:ncol(combs)) {
+        j = combs[,i]
+        r = check_vecm(df_in[j[1]], df_in[j[2]])
+        result[j[1], j[2]] = r
+    }
+    colnames(result) = colnames(df_in)
+    rownames(result) = colnames(df_in)
+    return(result)
+}
+
+check_tvecm = function(df, ord) {
+    res = TVECM.HStest(df, lag = ord, intercept = F, ngridTh = 50, hpc ='foreach')
+    return(res$PvalBoot)
+}
+
+pair_tvecm = function(df_in, y) {
+    n = ncol(df_in)
+    result = matrix(NaN, nrow = n*(n-1)/2, ncol = 4)
+    combs = combn(1:n, 2)
+    for (i in 1:ncol(combs)) {
+        j = combs[,i]
+        sub_df = df_in[j]
+        ns = colnames(sub_df)
+        ord = max(get_vecm_data(ns, y)[1, 'order'], 1)
+        r = check_tvecm(sub_df, ord)
+        tvecm_res = TVECM(sub_df, include = "none", lag = ord, trace = FALSE)
+        beta = tvecm_res$model.specific$beta
+        result[i,] = c(paste(ns, collapse = "."), y, r, beta)
+    }
+    colnames(result) = c("pair", "year", "pval", "beta")
+    return(result)
+}
+
+```
+
+```{r}
+res = matrix(NaN, nrow = 0, ncol = 4)
+colnames(res) = c("pair", "year", "pval", "beta")
+write.table(res,file='result/tvecm_res.csv',sep=',', row.names = FALSE, append=FALSE)
+
+for (y in years[4:length(years)-1]) {
+    df_in = get_sample(y)[[1]]
+    temp = pair_tvecm(df_in, y)
+    write.table(temp, file='result/tvecm_res.csv', sep=',', 
+    row.names = FALSE, col.names = FALSE, append=TRUE)
+}
+```
+
+```
+
+```{r}
+check_seo = function(df) {
+    start_time <- Sys.time()
+    ord = max(get_vecm_data(ns, y)[1, 'order'], 1)
+    temp = TVECM(df, include = "none", lag = ord, ngridTh = 50)
+    end_time <- Sys.time()
+    print(end_time - start_time)
+    res = TVECM.SeoTest(df, lag = ord, beta = temp$model.specific$beta, nboot = 100, check = FALSE, hpc ='foreach')
+    end_time <- Sys.time()
+    print(end_time - start_time)
+    return (res)
+}
+```
+
+```{r}
+pairs = as.matrix(read.csv("./candid2015.csv", row.names = 1))
+pair = pairs[1,]
+
+```
+
+```{r}
+temp = get_sample("2019")
+df_in = temp[[1]]
+# df_out = temp[[2]]
+
+# pair = c("VV", "SPY")
+# pair = c("IWV", "SCHB")
+pair = c("IVV", "ITOT")
+y = 2015
+df_pair = get_sample(y)[[1]][,pair]
+# df_pair = df_out[,pair]
+```
+```{r}
+start_time <- Sys.time()
+res = TVECM.HStest(df_pair, lag = 4, intercept = F, ngridTh = 50, hpc ='foreach')
+end_time <- Sys.time()
+print(end_time - start_time)
+```
+
+```{r}
+seo_res = check_seo(df_pair)
+```
+
+```{r}
+x = 1:10
+x = cbind(x, 2*x+10)
+p = 3
+# embed(x,p+1)
+```
+
+```{r}
+temp = function (x, dimension = 1) 
+{
+    if (is.matrix(x)) {
+        n <- nrow(x)
+        m <- ncol(x)
+        if ((dimension < 1) || (dimension > n)) 
+            stop("wrong embedding dimension")
+        y <- matrix(0, n - dimension + 1L, dimension * m)
+        for (i in seq_len(m)) {
+            y[, seq.int(i, by = m, length.out = dimension)] <- Recall(as.vector(x[, 
+            i]), dimension)
+        }
+        return(y)
+    }
+    else if (is.vector(x) || is.ts(x)) {
+        n <- length(x)
+        if ((dimension < 1) || (dimension > n)) 
+            stop("wrong embedding dimension")
+        m <- n - dimension + 1L
+        data <- x[1L:m + rep.int(dimension:1L, rep.int(m, dimension)) - 1L]
+        print(data)
+        dim(data) <- c(m, dimension)
+        print(data)
+        return(data)
+    }
+    else stop("'x' is not a vector or matrix")
+}
+
+temp(x, 3)
+```
+```{r}
+y = as.matrix(df_pair)
+p = 3
+T<-nrow(y)
+k<-ncol(y)
+Y = t(diff(y))[,(p+1):(T-1)]
+DeltaX<-rbind(1,t(embed(diff(y),p+1)[,-(1:k)]))	#trend and lags matrixs DeltaX(t-1,..) of dim: pk x t
+ECTfull = y %*% c(1, -0.5)
+ECT<-ECTfull[-c(1:p,T)]				#ECT
+
+ECTminus <-ifelse(ECT<155,1,0)*ECT			
+ECTplus <-ifelse(ECT>160, 1,0)*ECT
+ThreshECT<-cbind(ECTplus, ECTminus)
+Zsig<-rbind(ECTminus,ECTplus,DeltaX)
+Bsig<-tcrossprod(Y,Zsig)%*%chol2inv(chol(tcrossprod(Zsig)))
+resSig<-t(Y-Bsig%*%Zsig)
+resb<-rbind(matrix(0,nrow=p, ncol=k),apply(resSig,2,sample, replace=TRUE))
+```
