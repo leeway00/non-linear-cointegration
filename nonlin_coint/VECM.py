@@ -79,14 +79,14 @@ def common_trend_ols(price_data, oos_data, adf = True):
     # (oos_data @ stationary_common2).plot()
     return spread 
 
-def common_trend_vecm(price_data, oos_data, adf = True):
+def common_trend_vecm(price_data, oos_data, adf = True, beta = False):
     ord = max(select_order(price_data, 6).selected_orders.values())
     stationary_common = coint_johansen(price_data, 0, ord).evec[:,0]
     # stationary_common = VECM(price_data, k_ar_diff=ord, ).fit().beta[:,0]
     print(stationary_common)
 
     if adf:
-        adf_test = adf_valid_test(price_data @ stationary_common, regression = 'n')
+        adf_test = adf_valid_test(price_data @ stationary_common)
         print(adf_test)
     m = (price_data @ stationary_common).mean()
     spread = pd.concat([price_data, oos_data], axis=0) @ stationary_common
@@ -101,5 +101,6 @@ def common_trend_vecm(price_data, oos_data, adf = True):
     # t.plot()
     # plt.hlines(m, t.index[0], t.index[-1], colors='r', linestyles='dashed')
     # plt.show()
-    
+    if beta:
+        return spread, stationary_common
     return spread
