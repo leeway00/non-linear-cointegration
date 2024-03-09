@@ -6,7 +6,7 @@
 
 **Research Target:**
 
-1. The primary purpose is to analyze and model the non-linearity of cointegration from pairs trading. Please refer to `nonlinearcoint_pairs_trading.pdf` for the analysis result. I haven't run backtesting based on these models since the research is primarily focused on the robustness of the statistical arbitrage opportunity (e.g., whether the cointegrated relationship can be better captured/modeled at the out-of-sample).
+1. The primary purpose is to analyze and model the non-linearity of cointegration from pairs trading. Please refer to `nonlinearcoint_pairs_trading.pdf` for the analysis result. I haven't run backtesting based on these models since the research is primarily focused on the robustness of the statistical arbitrage opportunity (e.g., whether the cointegrated relationship can be better captured/modeled).
 For my research on trading signals at pairs trading, please take a look at [Copula Pairs Trading Strategy](https://github.com/leeway00/FINM_33150_Final_Project/blob/master/Notebook.ipynb), where the entire Section 2 (signal generation using Archimedean Mixture Copula with Non-Parametric Marginal) is my contribution.
 
 2. The second target is to explore and implement the two non-linear cointegration models. For the Python implementation of the Seo test for T-VECM, I mainly referenced Sitgler's algorithm from R (tsDyn package). Functional Coefficient Cointegration (Xiao, 2009) is implemented with truncated Gaussian distribution as a kernel function.
